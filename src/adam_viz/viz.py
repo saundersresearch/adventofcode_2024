@@ -1,0 +1,236 @@
+import numpy as np
+from typing import Iterable, List, Dict
+import copy
+
+import curses
+
+
+class Grid:
+    def __init__(self, width: int, height: int, default_char: str = "#"):
+        """ASCII grid for visualization.
+
+        Parameters
+        ----------
+        width : int
+            Horizontal size of grid.
+        height : int
+            Vertical size of grid.
+        default_char : str, optional
+            Default character for grid, by default "#"
+
+        Methods
+        -------
+        clear()
+            Reset grid to default character.
+        """
+        # Check parameters
+        if not isinstance(width, int):
+            raise TypeError("width must be an integer.")
+        if not isinstance(height, int):
+            raise TypeError("height must be an integer.")
+        if not isinstance(default_char, str):
+            raise TypeError("default_char must be a string.")
+        if len(default_char) != 1:
+            raise ValueError("default_char must be a single character.")
+        if width <= 0:
+            raise ValueError("width must be a positive integer.")
+        if height <= 0:
+            raise ValueError("height must be a positive integer.")
+
+        self._default_char = default_char
+
+        self.width = width
+        self.height = height
+        self.grid = np.full((height, width), default_char, dtype=str)
+
+    def clear(self) -> None:
+        """Reset grid to default character."""
+        self.grid = np.full((self.height, self.width), self._default_char, dtype=str)
+
+    def __str__(self) -> str:
+        """Convert grid to string."""
+        rows = ["".join(row) for row in self.grid]
+        full_grid = "\n".join(rows)
+        return full_grid
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __getitem__(self, coords: Iterable) -> str:
+        """Get character at coordinates (x, y). (0,0) is top left."""
+        x, y = coords
+        return self.grid[y, x]
+
+    def __setitem__(self, coords: Iterable, char: str) -> None:
+        """Set character at coordinates (x, y) to char. (0,0) is top left."""
+        x, y = coords
+        self.grid[y, x] = char
+
+    def __deepcopy__(self, memo):
+        """Create a deep copy of the grid."""
+        new_grid = Grid(self.width, self.height, self._default_char)
+        new_grid.grid = copy.deepcopy(self.grid)
+        return new_grid
+
+
+class Animation:
+    def __init__(self, frames: Iterable[Grid]):
+        """Animation for ASCII grid consisting of a sequence of Grids.
+
+        Parameters
+        ----------
+        frames : Iterable[Grid]
+            Sequence of Grids for animation
+
+        Methods
+        -------
+        animate()
+            Animate the grid.
+        """
+        if not isinstance(frames, List):
+            raise TypeError("frames must be a list.")
+
+        self.frames = frames
+        self.width = frames[0].width
+        self.height = frames[0].height
+
+    def animate(self, frame_time: int = 500) -> None:
+        """Animate the grid with a time delay between frames."""
+        curses_visualizer = CursesVisualizer(self, frame_time)
+        curses_visualizer.run()
+
+    def export_xpm(self, file_prefix: str, color_dict: Dict) -> None:
+        """Export the animation to an XPM file."""
+        exporter = XPMExporter(self, color_dict)
+        exporter.export(file_prefix)
+
+
+class CursesVisualizer:
+    def __init__(self, animation: Animation, frame_time: int = 500):
+        """Create a text-based terminal visualization of an Animation with curses.
+
+        Parameters
+        ----------
+        animation : Animation
+            Animation to visualize.
+        frame_time : int, optional
+            Time in milliseconds to display each frame, by default 500.
+
+        Methods
+        -------
+        run()
+            Run the visualization.
+        """
+        self.animation = animation
+        self.frame_time = frame_time
+
+        # Set up curses
+        stdscr = curses.initscr()  # Initialize the screen
+        curses.noecho()  # Turn off echo of keys
+        curses.cbreak()  # Immediate reaction to key presses
+        stdscr.keypad(True)  # Enable keypad mode
+        curses.start_color()  # Allow default colors
+        curses.use_default_colors()
+        curses.curs_set(0)  # Turn off curser visibility
+
+        self.stdscr = stdscr
+
+    def run(self) -> None:
+        """Run the visualization."""
+        for frame in self.animation.frames:
+            self.stdscr.clear()
+
+            # Add string in middle of screen
+            y, x = self.stdscr.getmaxyx()
+            y = y // 2 - frame.height // 2
+            x = x // 2 - frame.width // 2
+            for row in range(frame.height):
+                self.stdscr.addstr(y + row, x, "".join(frame.grid[row]))
+
+            self.stdscr.refresh()
+            curses.napms(self.frame_time)  # Wait for frame_time milliseconds
+
+        self.stdscr.getkey()
+        curses.endwin()
+
+
+class XPMExporter:
+    def __init__(self, animation: Animation, color_dict: Dict):
+        """Export an Animation to an XPM file.
+
+        Parameters
+        ----------
+        animation : Animation
+            Animation to export.
+        color_dict : Dict
+            Dictionary mapping characters to color names (either #RRGGBB or a web color name)
+
+        Methods
+        -------
+        export()
+            Export the animation frames to XPM files.
+
+        Notes
+        -----
+        XPM is a simple text-based image format. The images are readable as text, or
+        you can view them with magick display *.xpm.
+        """
+        if not isinstance(animation, Animation):
+            raise TypeError("animation must be an Animation.")
+        if not isinstance(color_dict, Dict):
+            raise TypeError("color_dict must be a dictionary.")
+
+        # Check color_dict has all the unique values in frames
+        unique_chars = set()
+        for frame in animation.frames:
+            unique_chars.update(set(np.unique(frame.grid)))
+
+        for char in unique_chars:
+            if char not in color_dict:
+                raise ValueError(f"color_dict must have a value for {char}.")
+
+        self.animation = animation
+        self.color_dict = color_dict
+
+    def export(self, file_prefix: str) -> None:
+        num_colors = len(self.color_dict)
+        width = self.animation.width
+        height = self.animation.height
+        num_frames = len(self.animation.frames)
+        num_digits = len(str(num_frames))
+
+        for i, frame in enumerate(self.animation.frames):
+            filename = f"{file_prefix}{i:0{num_digits}d}.xpm"
+            with open(filename, "w") as f:
+                # Write header
+                f.write("/* XPM */\n")
+                f.write("static char *xpm[] = {\n")
+                f.write(f'"{width} {height} {num_colors} 1",\n')
+                for char, color in self.color_dict.items():
+                    f.write(f'"{char} c {color}",\n')
+
+                # Write frames
+                for row in frame.grid:
+                    f.write('"')
+                    f.write("".join(row))
+                    f.write('",\n')
+
+                f.write("};")
+
+
+# Add test
+if __name__ == "__main__":
+    # Make an animation
+    grid1 = Grid(4, 4)
+    grid1[2, 0] = "X"
+    grid2 = copy.deepcopy(grid1)
+    grid2[2, 1] = "X"
+    grid3 = copy.deepcopy(grid2)
+    grid3[2, 2] = "X"
+    grid4 = copy.deepcopy(grid3)
+    grid4[2, 3] = "X"
+
+    animation = Animation([grid1, grid2, grid3, grid4])
+    animation.animate()
+    color_dict = {"#": "black", "X": "red"}
+    animation.export_xpm("../../practice/frame_", color_dict)
