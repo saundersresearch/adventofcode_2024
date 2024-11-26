@@ -1,6 +1,8 @@
 import numpy as np
-from typing import Iterable, List, Dict
+from typing import Iterable, List, Dict, Tuple
 import copy
+import subprocess
+from pathlib import Path
 
 import curses
 
@@ -104,6 +106,11 @@ class Animation:
         exporter = XPMExporter(self, color_dict)
         exporter.export(file_prefix)
 
+    def export_mp4(self, file_prefix: str, color_dict: Dict, frame_time: int, resolution: Tuple[int, int] = (640, 480)) -> None:
+        """Export the animation to an MP4 file."""
+        exporter = MP4Exporter(self, color_dict)
+        exporter.export(file_prefix, frame_time, resolution)
+
 
 class CursesVisualizer:
     def __init__(self, animation: Animation, frame_time: int = 500):
@@ -153,8 +160,27 @@ class CursesVisualizer:
         self.stdscr.getkey()
         curses.endwin()
 
+class Exporter:
+    def __init__(self, animation: Animation, color_dict: Dict):
+        """Export an Animation to a file. Intended to be subclassed."""
+        if not isinstance(animation, Animation):
+            raise TypeError("animation must be an Animation.")
+        if not isinstance(color_dict, Dict):
+            raise TypeError("color_dict must be a dictionary.")
 
-class XPMExporter:
+        # Check color_dict has all the unique values in frames
+        unique_chars = set()
+        for frame in animation.frames:
+            unique_chars.update(set(np.unique(frame.grid)))
+
+        for char in unique_chars:
+            if char not in color_dict:
+                raise ValueError(f"color_dict must have a value for {char}.")
+
+        self.animation = animation
+        self.color_dict = color_dict
+
+class XPMExporter(Exporter):
     def __init__(self, animation: Animation, color_dict: Dict):
         """Export an Animation to an XPM file.
 
@@ -175,22 +201,7 @@ class XPMExporter:
         XPM is a simple text-based image format. The images are readable as text, or
         you can view them with magick display *.xpm.
         """
-        if not isinstance(animation, Animation):
-            raise TypeError("animation must be an Animation.")
-        if not isinstance(color_dict, Dict):
-            raise TypeError("color_dict must be a dictionary.")
-
-        # Check color_dict has all the unique values in frames
-        unique_chars = set()
-        for frame in animation.frames:
-            unique_chars.update(set(np.unique(frame.grid)))
-
-        for char in unique_chars:
-            if char not in color_dict:
-                raise ValueError(f"color_dict must have a value for {char}.")
-
-        self.animation = animation
-        self.color_dict = color_dict
+        super().__init__(animation, color_dict)
 
     def export(self, file_prefix: str) -> None:
         num_colors = len(self.color_dict)
@@ -201,6 +212,7 @@ class XPMExporter:
 
         for i, frame in enumerate(self.animation.frames):
             filename = f"{file_prefix}{i:0{num_digits}d}.xpm"
+            filename = Path(filename).resolve()
             with open(filename, "w") as f:
                 # Write header
                 f.write("/* XPM */\n")
@@ -216,6 +228,69 @@ class XPMExporter:
                     f.write('",\n')
 
                 f.write("};")
+
+class MP4Exporter(XPMExporter):
+    def __init__(self, animation: Animation, color_dict: Dict):
+        """Export an Animation to an MP4 file. Requires ffmpeg to be installed.
+
+        Parameters
+        ----------
+        animation : Animation
+            Animation to export.
+        color_dict : Dict
+            Dictionary mapping characters to color names (either #RRGGBB or a web color name)
+
+        Methods
+        -------
+        export()
+            Export the animation frames to XPM and then stitch them together into an MP4.
+        """
+        super().__init__(animation, color_dict)
+
+    def export(self, output_mp4: str, frame_time: int, resolution: Tuple[int, int] = (640, 480), remove_xpm=True) -> None:
+        # Check resolution
+        if not isinstance(resolution, tuple) or \
+            not isinstance(resolution[0], int) or not isinstance(resolution[1], int):
+            raise TypeError("resolution must be a tuple of two integers.")
+
+        # Check output_mp4 ends with .mp4
+        if not output_mp4.endswith(".mp4"):
+            raise ValueError("output_mp4 must end with '.mp4'.")
+        output_mp4 = Path(output_mp4).resolve()
+        
+        # Check if ffmpeg is installed
+        try:
+            subprocess.run(["ffmpeg", "-version"], check=True)
+        except FileNotFoundError:
+            raise FileNotFoundError("ffmpeg not found. Please install ffmpeg.")
+    
+        file_prefix = output_mp4.with_suffix("")
+        file_prefix = Path(file_prefix).resolve()
+        super().export(file_prefix)
+
+        # Use ffmpeg to stitch together the XPM files into an MP4
+        ffmpeg_command = [
+            "ffmpeg",
+            "-framerate",
+            f"{1000 / frame_time}",
+            "-i",
+            f"{file_prefix}%d.xpm",
+            "-c:v",
+            "libx264",
+            "-vf",
+            f"scale={resolution[0]}:{resolution[1]}:flags=neighbor,format=yuv420p",
+            "-movflags",
+            "+faststart",
+            f"{file_prefix}.mp4",
+            "-y"
+        ]
+        subprocess.run(ffmpeg_command, check=True)
+
+        if remove_xpm:
+            for i in range(len(self.animation.frames)):
+                xpm_file = f"{file_prefix}{i:0{len(str(len(self.animation.frames)))}d}.xpm"
+                xpm_file = Path(xpm_file).resolve()
+                xpm_file.unlink()
 
 
 # Add test
@@ -233,4 +308,6 @@ if __name__ == "__main__":
     animation = Animation([grid1, grid2, grid3, grid4])
     animation.animate()
     color_dict = {"#": "black", "X": "red"}
-    animation.export_xpm("../../practice/frame_", color_dict)
+
+    # Export to MP4
+    animation.export_mp4("../../practice/output.mp4", color_dict, resolution=(320, 240), frame_time=500)
