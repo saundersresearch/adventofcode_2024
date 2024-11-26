@@ -167,5 +167,6 @@ cython_debug/
 uv.lock
 .python-version
 
-# Images
+# Images and videos
 *.xpm
+*.mp4
