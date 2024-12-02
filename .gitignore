@@ -170,3 +170,4 @@ uv.lock
 # Images and videos
 *.xpm
 *.mp4
+.vscode/settings.json

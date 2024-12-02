@@ -106,7 +106,13 @@ class Animation:
         exporter = XPMExporter(self, color_dict)
         exporter.export(file_prefix)
 
-    def export_mp4(self, file_prefix: str, color_dict: Dict, frame_time: int, resolution: Tuple[int, int] = (640, 480)) -> None:
+    def export_mp4(
+        self,
+        file_prefix: str,
+        color_dict: Dict,
+        frame_time: int,
+        resolution: Tuple[int, int] = (640, 480),
+    ) -> None:
         """Export the animation to an MP4 file."""
         exporter = MP4Exporter(self, color_dict)
         exporter.export(file_prefix, frame_time, resolution)
@@ -160,6 +166,7 @@ class CursesVisualizer:
         self.stdscr.getkey()
         curses.endwin()
 
+
 class Exporter:
     def __init__(self, animation: Animation, color_dict: Dict):
         """Export an Animation to a file. Intended to be subclassed."""
@@ -179,6 +186,7 @@ class Exporter:
 
         self.animation = animation
         self.color_dict = color_dict
+
 
 class XPMExporter(Exporter):
     def __init__(self, animation: Animation, color_dict: Dict):
@@ -229,6 +237,7 @@ class XPMExporter(Exporter):
 
                 f.write("};")
 
+
 class MP4Exporter(XPMExporter):
     def __init__(self, animation: Animation, color_dict: Dict):
         """Export an Animation to an MP4 file. Requires ffmpeg to be installed.
@@ -247,23 +256,32 @@ class MP4Exporter(XPMExporter):
         """
         super().__init__(animation, color_dict)
 
-    def export(self, output_mp4: str, frame_time: int, resolution: Tuple[int, int] = (640, 480), remove_xpm=True) -> None:
+    def export(
+        self,
+        output_mp4: str,
+        frame_time: int,
+        resolution: Tuple[int, int] = (640, 480),
+        remove_xpm=True,
+    ) -> None:
         # Check resolution
-        if not isinstance(resolution, tuple) or \
-            not isinstance(resolution[0], int) or not isinstance(resolution[1], int):
+        if (
+            not isinstance(resolution, tuple)
+            or not isinstance(resolution[0], int)
+            or not isinstance(resolution[1], int)
+        ):
             raise TypeError("resolution must be a tuple of two integers.")
 
         # Check output_mp4 ends with .mp4
         if not output_mp4.endswith(".mp4"):
             raise ValueError("output_mp4 must end with '.mp4'.")
         output_mp4 = Path(output_mp4).resolve()
-        
+
         # Check if ffmpeg is installed
         try:
             subprocess.run(["ffmpeg", "-version"], check=True)
         except FileNotFoundError:
             raise FileNotFoundError("ffmpeg not found. Please install ffmpeg.")
-    
+
         file_prefix = output_mp4.with_suffix("")
         file_prefix = Path(file_prefix).resolve()
         super().export(file_prefix)
@@ -282,13 +300,15 @@ class MP4Exporter(XPMExporter):
             "-movflags",
             "+faststart",
             f"{file_prefix}.mp4",
-            "-y"
+            "-y",
         ]
         subprocess.run(ffmpeg_command, check=True)
 
         if remove_xpm:
             for i in range(len(self.animation.frames)):
-                xpm_file = f"{file_prefix}{i:0{len(str(len(self.animation.frames)))}d}.xpm"
+                xpm_file = (
+                    f"{file_prefix}{i:0{len(str(len(self.animation.frames)))}d}.xpm"
+                )
                 xpm_file = Path(xpm_file).resolve()
                 xpm_file.unlink()
 
@@ -310,4 +330,6 @@ if __name__ == "__main__":
     color_dict = {"#": "black", "X": "red"}
 
     # Export to MP4
-    animation.export_mp4("../../practice/output.mp4", color_dict, resolution=(320, 240), frame_time=500)
+    animation.export_mp4(
+        "../../practice/output.mp4", color_dict, resolution=(320, 240), frame_time=500
+    )
