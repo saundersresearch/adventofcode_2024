@@ -1,77 +1,70 @@
-import numpy as np
-from typing import Iterable, List, Dict, Tuple
 import copy
+import curses
 import subprocess
 from pathlib import Path
+from typing import Dict, Iterable, List, Tuple
 
-import curses
+import numpy as np
 
 
 class Grid:
     def __init__(self, width: int, height: int, default_char: str = "#"):
-        """ASCII grid for visualization.
-
-        Parameters
-        ----------
-        width : int
-            Horizontal size of grid.
-        height : int
-            Vertical size of grid.
-        default_char : str, optional
-            Default character for grid, by default "#"
-
-        Methods
-        -------
-        clear()
-            Reset grid to default character.
-        """
-        # Check parameters
-        if not isinstance(width, int):
-            raise TypeError("width must be an integer.")
-        if not isinstance(height, int):
-            raise TypeError("height must be an integer.")
-        if not isinstance(default_char, str):
-            raise TypeError("default_char must be a string.")
-        if len(default_char) != 1:
+        if not isinstance(width, int) or not isinstance(height, int):
+            raise TypeError("width and height must be integers.")
+        if not isinstance(default_char, str) or len(default_char) != 1:
             raise ValueError("default_char must be a single character.")
-        if width <= 0:
-            raise ValueError("width must be a positive integer.")
-        if height <= 0:
-            raise ValueError("height must be a positive integer.")
+        if width <= 0 or height <= 0:
+            raise ValueError("width and height must be positive integers.")
 
         self._default_char = default_char
+        self._grid = np.full((height, width), default_char, dtype=str)
 
-        self.width = width
-        self.height = height
-        self.grid = np.full((height, width), default_char, dtype=str)
+    @property
+    def width(self):
+        return self._grid.shape[1]
 
-    def clear(self) -> None:
+    @property
+    def height(self):
+        return self._grid.shape[0]
+
+    @property
+    def grid(self):
+        """Access the full grid as a NumPy array."""
+        return self._grid
+
+    @grid.setter
+    def grid(self, new_grid: np.ndarray):
+        """Replace the grid with a new NumPy array."""
+        if not isinstance(new_grid, np.ndarray):
+            raise TypeError("The new grid must be a NumPy array.")
+        if new_grid.shape != (self.height, self.width):
+            raise ValueError(
+                f"The new grid must have shape {(self.height, self.width)}."
+            )
+        self._grid = new_grid
+
+    def clear(self):
         """Reset grid to default character."""
-        self.grid = np.full((self.height, self.width), self._default_char, dtype=str)
+        self._grid.fill(self._default_char)
 
-    def __str__(self) -> str:
-        """Convert grid to string."""
-        rows = ["".join(row) for row in self.grid]
-        full_grid = "\n".join(rows)
-        return full_grid
+    def __str__(self):
+        rows = ["".join(row) for row in self._grid]
+        return "\n".join(rows)
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return self.__str__()
 
-    def __getitem__(self, coords: Iterable) -> str:
-        """Get character at coordinates (x, y). (0,0) is top left."""
-        x, y = coords
-        return self.grid[y, x]
+    def __getitem__(self, key):
+        return self._grid[key]
 
-    def __setitem__(self, coords: Iterable, char: str) -> None:
-        """Set character at coordinates (x, y) to char. (0,0) is top left."""
-        x, y = coords
-        self.grid[y, x] = char
+    def __setitem__(self, key, value):
+        if any(k < 0 for k in key):
+            raise ValueError(f"Cannot set grid at negative index {key}.")
+        self._grid[key] = value
 
     def __deepcopy__(self, memo):
-        """Create a deep copy of the grid."""
         new_grid = Grid(self.width, self.height, self._default_char)
-        new_grid.grid = copy.deepcopy(self.grid)
+        new_grid._grid = copy.deepcopy(self._grid)
         return new_grid
 
 
