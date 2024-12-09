@@ -1,4 +1,5 @@
 from itertools import batched, chain, product, zip_longest
+
 from tqdm import tqdm
 
 test_string = """190: 10 19
@@ -12,7 +13,7 @@ test_string = """190: 10 19
 292: 11 6 16 20
 """
 input_string = test_string
-with open('inputs/day7.txt') as f:
+with open("inputs/day7.txt") as f:
     input_string = f.read()
 
 ### Part 1
@@ -60,6 +61,7 @@ for equation in tqdm(input_string.splitlines()):
 
     # Loop through potential spaces
     for operator_combination in product(operators, repeat=n_spaces):
+        break_outer = False
         merged_expression = [
             pair
             for pair in chain(*zip_longest(operands, operator_combination))
@@ -73,7 +75,7 @@ for equation in tqdm(input_string.splitlines()):
                 result += operand
             elif operator == "*":
                 result *= operand
-            elif operator == '||':
+            elif operator == "||":
                 # Concatenate
                 result = int(str(result) + str(operand))
 
