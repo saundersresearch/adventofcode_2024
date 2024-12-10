@@ -1,5 +1,8 @@
+import heapq
 from itertools import groupby
+from collections import defaultdict
 
+import line_profiler
 import numpy as np
 from tqdm import tqdm
 
@@ -60,51 +63,71 @@ for i, char in enumerate(input_string):
 print(disk_blocks)
 
 
-# Create dictionary of index: length for all blanks
-def create_blank_dict(disk_blocks):
-    blank_dict = dict()
+# Create a heap of all the gaps, sorted by gap length
+def create_blank_heaps(disk_blocks):
+    blank_heaps = [[] for i in range(10)]
     for is_blank, sequence in groupby(enumerate(disk_blocks), lambda x: x[1] == -1):
         if is_blank:
             sequence = list(sequence)
             start_index = sequence[0][0]
             sequence_length = len(sequence)
-            blank_dict[start_index] = sequence_length
-    return blank_dict
+            blank_heaps[sequence_length].append(start_index)
+
+    # Heapify
+    [heapq.heapify(blank_heap) for blank_heap in blank_heaps]
+    return blank_heaps
 
 
-blank_dict = create_blank_dict(disk_blocks)
-print(blank_dict)
+blank_heaps = create_blank_heaps(disk_blocks)
+print(blank_heaps, "".join([str(d) for d in disk_blocks]).replace("-1", "."))
+print(disk_blocks)
 
-# print(
-#     "".join([str(d) for d in disk_blocks]).replace("-1", "."),
-#     dict(sorted(blank_dict.items())),
-# )
+# Create locations of each file id and store in dict file_id: (index, length)
+file_loc_dict = defaultdict(lambda: {"start": None, "size": 0})
+for idx, file_id in enumerate(disk_blocks):
+    if file_id != -1:
+        if file_loc_dict[file_id]["start"] is None:
+            file_loc_dict[file_id]["start"] = idx  # Set start index
+        file_loc_dict[file_id]["size"] += 1     # Increment size
 
-# Compress sequence by iterating down files and moving whole file IDs that fit into blank spaces
-for file_id in tqdm(range(max(disk_blocks), -1, -1)):
-    # Where is file?
-    file_loc = [i for i, n in enumerate(disk_blocks) if n == file_id]
-    file_start = min(file_loc)
+# @line_profiler.profile
+def get_new_seq():
+    # Compress sequence by iterating down files and moving whole file IDs that fit into blank spaces
+    for file_id in tqdm(range(max(disk_blocks), -1, -1)):
+        # Where is file?
+        file_start = file_loc_dict[file_id]["start"]
+        file_size = file_loc_dict[file_id]["size"]
 
-    # How large?
-    file_size = len(file_loc)
+        # Is there a spot that fits this?
+        # Get a list of smallest index for each
+        leftmost_indices = [
+            heap[0] if len(heap) > 0 and i >= file_size else len(disk_blocks)
+            for i, heap in enumerate(blank_heaps)
+        ]
 
-    for idx, seq_size in sorted(blank_dict.items()):
-        if seq_size >= file_size and file_start > idx:
+        # Find min that fits
+        min_index = min(leftmost_indices)
+        min_heap_index = leftmost_indices.index(min_index)
+
+        if min_index < len(disk_blocks) and min_index < file_start:
+            new_idx = heapq.heappop(blank_heaps[min_heap_index])
+
             # Put into space
-            disk_blocks[idx : (idx + file_size)] = [file_id] * file_size
+            disk_blocks[new_idx : new_idx + file_size] = [file_id] * file_size
 
-            # Remove from disk_blocks
-            disk_blocks[file_start : (file_start + file_size)] = [-1] * file_size
+            # Remove from old space
+            disk_blocks[file_start : file_start + file_size] = [-1] * file_size
 
-            # Update dict (this is the major inefficiency)
-            blank_dict = create_blank_dict(disk_blocks)
+            # Update heap
+            new_size = min_heap_index - file_size
+            if new_size > 0:
+                heapq.heappush(blank_heaps[new_size], new_idx + file_size)
 
-            break
+            # Update dict
+            file_loc_dict[file_id]["start"] = new_idx
+            file_loc_dict[file_id]["size"] = file_size
 
-    # tqdm.write(
-    #     f"{''.join([str(d) for d in disk_blocks]).replace('-1', '.')},{dict(sorted(blank_dict.items()))}"
-    # )
+        # print(blank_heaps, "".join([str(d) for d in disk_blocks]).replace("-1", "."))
 
 # Checksum is sum of id * location
 checksum = 0
