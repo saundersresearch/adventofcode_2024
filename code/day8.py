@@ -74,9 +74,6 @@ for frequency in np.unique(antenna_map):
         height = freq1_row - freq2_row
         width = freq1_col - freq2_col
 
-        height_sign = np.sign(height)
-        width_sign = np.sign(width)
-
         # If height/width is 0, just repeat the row/col
         # Otherwise, repeat from -antenna_map size to +antenna_map size by height/width, starting off at freq1
         if height == 0:
