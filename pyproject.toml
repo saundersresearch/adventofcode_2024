@@ -21,3 +21,6 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/saundersresearch/adventofcode_2024"
+
+[tool.uv.workspace]
+members = ["code"]
