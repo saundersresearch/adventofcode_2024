@@ -3,7 +3,6 @@ from collections import defaultdict
 from itertools import groupby
 
 import numpy as np
-from tqdm import tqdm
 
 test_string = "2333133121414131402"
 input_string = test_string
