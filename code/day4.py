@@ -1,23 +1,5 @@
 import numpy as np
 
-test_string1 = """..X...
-.SAMX.
-.A..A.
-XMAS.S
-.X....
-"""
-test_string2 = """.M.S......
-..A..MSMS.
-.M.S.MAA..
-..A.ASMSM.
-.M.S.M....
-..........
-S.S.S.S.S.
-.A.A.A.A..
-M.M.M.M.M.
-..........
-"""
-# input_string = test_string2
 with open('inputs/day4.txt') as f:
     input_string = f.read()
 

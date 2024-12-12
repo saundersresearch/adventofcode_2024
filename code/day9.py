@@ -4,8 +4,6 @@ from itertools import groupby
 
 import numpy as np
 
-test_string = "2333133121414131402"
-input_string = test_string
 with open("inputs/day9.txt") as f:
     input_string = f.read()
 

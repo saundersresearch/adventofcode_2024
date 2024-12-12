@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 
 ### Part 1
-
 input_path = Path("inputs/day1.txt")
 with open(input_path, "r") as f:
     input_data = np.loadtxt(input_path, dtype=int)

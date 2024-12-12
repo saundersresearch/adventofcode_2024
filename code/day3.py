@@ -1,9 +1,6 @@
 import re
 
 ### Part 1
-input_string = (
-    "mul(1,1)don't()mul(1,1)don't()mul(1,100)do()mul(1,1)do()mul(1,1)don't()mul(1,1)"
-)
 with open("inputs/day3.txt") as f:
     input_string = f.read()
 

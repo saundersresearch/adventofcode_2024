@@ -1,14 +1,3 @@
-test_string = """89010123
-78121874
-87430965
-96549874
-45678903
-32019012
-01329801
-10456732
-"""
-
-input_string = test_string
 with open("inputs/day10.txt") as f:
     input_string = f.read()
 
