@@ -1,17 +1,28 @@
 import numpy as np
 import heapq
 from adam_viz import Grid, Animation
-from copy import deepcopy
+from queue import Queue
 
-input_string = """#####
-#..E#
-#...#
-#...#
-#S..#
-#####
+input_string = """#################
+#...#...#...#..E#
+#.#.#.#.#.#.#.#.#
+#.#.#.#...#...#.#
+#.#.#.#.###.#.#.#
+#...#.#.#.....#.#
+#.#.#.#.#.#####.#
+#.#...#.#.#.....#
+#.#.#####.#.###.#
+#.#.#.......#...#
+#.#.###.#####.###
+#.#.#...#.....#.#
+#.#.#.#####.###.#
+#.#.#.........#.#
+#.#.#.#########.#
+#S#.............#
+#################
 """
-# with open('inputs/day16.txt') as f:
-#     input_string = f.read()
+with open('inputs/day16.txt') as f:
+    input_string = f.read()
 
 ### Part 1
 maze = [list(line) for line in input_string.split()]
@@ -81,3 +92,56 @@ print(maze_map)
 # Best path score is distance at end_idx
 best_path_score = distances[end_idx]
 print(f'{best_path_score=}')
+
+### Part 2
+# Instead of Dijkstra's, run a BFS to get best_path_score so we can find all best paths
+queue = Queue()
+queue.put([(0,start_idx,'E')])
+
+best_paths = []
+while not queue.empty():
+    print(f'{queue.qsize()=}')
+    path = queue.get()
+    
+    # Is path at end node and score is best_path_score?
+    path_end_score, path_end_idx, path_end_dir = path[-1]
+    if maze[*path_end_idx] == 'E' and path_end_score == best_path_score:
+        path_idxs = [p[1] for p in path]
+        best_paths.append(path_idxs)
+        continue
+    
+    # print(path)
+    path_scores = [p[0] for p in path]
+    path_idxs = [p[1] for p in path]
+    path_dirs = [p[2] for p in path]
+
+    # Get neighbors
+    neighbors = [
+        (path_end_idx[0]-1, path_end_idx[1]), # North
+        (path_end_idx[0]+1, path_end_idx[1]), # South
+        (path_end_idx[0], path_end_idx[1]+1), # East
+        (path_end_idx[0], path_end_idx[1]-1), # West
+    ]
+    neighbors = [n for n in neighbors if n[0] >= 0 and n[0] < maze.shape[0] and n[1] >= 0 and n[1] < maze.shape[1] and maze[*n] != '#']
+    
+    for v in neighbors:
+        if v not in path_idxs:
+            # print(path_end_idx, v)
+            dist, new_dir = calculate_dist(path_end_idx, v, path_end_dir)
+            new_path_score = path_scores[len(path)-1] + dist
+            if new_path_score <= best_path_score:
+                new_path = path.copy()
+                new_path.append((new_path_score, v, new_dir))
+                queue.put(new_path)
+
+# How many tiles are in a best path?
+maze_map = maze.copy()
+best_path_tiles = set()
+for path in best_paths:
+    # print(best_paths)
+    for idx in path:
+        maze_map[*idx] = 'O'
+        best_path_tiles.add(idx)
+    
+print('\n'.join(''.join(row) for row in maze_map))
+print(f'Total tiles along best paths: {len(best_path_tiles)}')
