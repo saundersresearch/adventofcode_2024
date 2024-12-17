@@ -1,26 +1,8 @@
 import numpy as np
 import heapq
-from adam_viz import Grid, Animation
-from queue import Queue
 
-input_string = """###############
-#.......#....E#
-#.#.###.#.###.#
-#.....#.#...#.#
-#.###.#####.#.#
-#.#.#.......#.#
-#.#.#####.###.#
-#...........#.#
-###.#.#####.#.#
-#...#.....#.#.#
-#.#.#.###.#.#.#
-#.....#...#.#.#
-#.###.#.#.#.#.#
-#S..#.....#...#
-###############
-"""
-# with open('inputs/day16.txt') as f:
-#     input_string = f.read()
+with open('inputs/day16.txt') as f:
+    input_string = f.read()
 
 ### Part 1
 maze = [list(line) for line in input_string.split()]
@@ -88,111 +70,85 @@ while next_idx is not None:
     maze_map[*next_idx] = 'X'
     next_idx = predecessors[next_idx]
 
-print(maze_map)
-
 # Best path score is distance at end_idx
 best_path_score = distances[end_idx]
-print(f'{best_path_score=}')
+print(f'Best path score: {best_path_score}')
 
-print(directions)
 
 ### Part 2
-# BFS on Djikstra distances
-print(distances)
-
-# How many tiles are in a best path?
-maze_map = maze.copy()
-best_path_tiles = set()
-for idx, score in distances.items():
-    if score <= best_path_score:
-        maze_map[*idx] = 'O'
-
-print('\n'.join(''.join(row) for row in maze_map))
-
-
 # Instead of Dijkstra's, run a BFS to get best_path_score so we can find all best paths
-queue = Queue()
-queue.put([(0,end_idx,'N')])
-queue.put([(0,end_idx,'S')])
-queue.put([(0,end_idx,'E')])
-queue.put([(0,end_idx,'W')])
+def dijkstra(start_idx, start_dir=None, revisit=True):
+    """Get distances from start_idx to all others"""
+    queue = [] # Tuples of distance, idx, direction
+    visited = set()
+    distances = dict()
+    predecessors = dict()
+
+    if start_dir is not None:
+        heapq.heappush(queue, (0, start_idx, start_dir))
+        distances[start_idx] = 0
+    else:
+        heapq.heappush(queue, (0, start_idx, 'N'))
+        heapq.heappush(queue, (0, start_idx, 'S'))
+        heapq.heappush(queue, (0, start_idx, 'E'))
+        heapq.heappush(queue, (0, start_idx, 'W'))
+
+        distances[start_idx] = 0
+    predecessors[start_idx] = start_idx
 
 
-best_paths = []
-while not queue.empty():
-    print(f'{queue.qsize()=}')
-    path = queue.get()
-    
-    # Is path at start node and score is best_path_score?
-    path_end_score, path_end_idx, path_end_dir = path[-1]
+    while len(queue) > 0:
+        _, u_idx, u_dir = heapq.heappop(queue)
+        if u_idx == (13,13):
+            pass
 
-    if maze[*path_end_idx] == 'S':
-        path_idxs = [p[1] for p in path]
-        best_paths.append(path_idxs)
-        continue
-    
-    print(path)
-    path_scores = [p[0] for p in path]
-    path_idxs = [p[1] for p in path]
-#     path_dirs = [p[2] for p in path]
+        # Get neighbors
+        neighbors = [
+            (u_idx[0]-1, u_idx[1]), # North
+            (u_idx[0]+1, u_idx[1]), # South
+            (u_idx[0], u_idx[1]+1), # East
+            (u_idx[0], u_idx[1]-1), # West
+        ]
+        neighbors = [n for n in neighbors if n[0] >= 0 and n[0] < maze.shape[0] and n[1] >= 0 and n[1] < maze.shape[1] and maze[*n] != '#']
+        for v in neighbors:
+            if v in visited:
+                continue
+            dist, new_dir = calculate_dist(u_idx, v, u_dir)
+            alt = distances[u_idx] + dist
+            if v not in distances.keys() or alt <= distances[v]:
+                predecessors[v] = u_idx
+                distances[v] = alt
+                directions[v] = u_dir
+                heapq.heappush(queue, (alt, v, new_dir))
+                if not revisit:
+                    visited.add(v) # Adding this reverses the problems
 
-    # Get neighbors
-    neighbors = [
-        ((path_end_idx[0]-1, path_end_idx[1]), 'S'),
-        ((path_end_idx[0]+1, path_end_idx[1]), 'N'),
-        ((path_end_idx[0], path_end_idx[1]-1), 'W'),
-        ((path_end_idx[0], path_end_idx[1]+1), 'E'),
-    ]
-    neighbors = [n for n in neighbors if n[0][0] >= 0 and n[0][0] < maze.shape[0] and n[0][1] >= 0 and n[0][1] < maze.shape[1] and maze[*n[0]] != '#']
-    
-    for v, dir in neighbors:
-        if v not in path_idxs:
-            # print(path_end_idx, v)
-            # dist, new_dir = calculate_dist(path_end_idx, v, path_end_dir)
-            # new_path_score = path_scores[len(path)-1] + dist            
-            
-            # Find distance from neighbor to path end and direction
+    return distances, predecessors, directions
 
-            dist, new_dir = calculate_dist(v, path_end_idx, path_end_dir) 
-            print(f'{v=}? {path_end_idx=}, {dir=}, {dist=}, {new_dir=}, {path_end_score=}')
+distances_from_start, pred_start, dir_start = dijkstra(start_idx, start_dir='E')
+distances_from_end, pred_end, dir_end = dijkstra(end_idx)
 
-            # Want to get current path score
-            current_path_score = distances[*v]
-            current_end_score = distances[*path_end_idx]
-            total_dist = dist + path_end_score
+total = 0
+on_best_path = []
+for key in sorted(distances_from_end.keys()):
+    if distances_from_start[key]+distances_from_end[key] == best_path_score:
+        total += 1
+        on_best_path.append(key)
 
-            print(f'{current_path_score=}')
-            print(f'{path_end_score=}')
-            print(f'{current_end_score=}')
-            print(f'{total_dist=}')
+# For some reason, need to repeat without revisiting to cover the "decision" tiles?
+distances_from_start, pred_start, dir_start = dijkstra(start_idx, start_dir='E', revisit=False)
+distances_from_end, pred_end, dir_end = dijkstra(end_idx, revisit=False)
 
-            # Is dist + current_path_score = best_path_score?
-            if current_end_score + total_dist - 1 == best_path_score:
-                print('YES!')
-                new_path = path.copy()
-                new_path.append((total_dist, v, new_dir))
-                queue.put(new_path)
+for key in sorted(distances_from_end.keys()):
+    if distances_from_start[key]+distances_from_end[key] == best_path_score:
+        total += 1
+        on_best_path.append(key)
 
-            # dist, new_dir = calculate_dist(v, path_end_idx, path_end_dir) # THIS IS THE MISTAKE - NOT THE RIGHT DIR? WHEN TURNING
-            # new_path_score = distances[*v] if v in distances else np.inf
-            # print(f'{v=} {new_dir=} {dist=}, {new_path_score=}, {path_end_score=} {new_path_score+dist+path_end_score}')
-            # print(f'{distances[*path_end_idx] + path_end_score}')
-            # if v == (np.int64(12), np.int64(13)):
-            #     pass
-            # if distances[*path_end_idx] + path_end_score == best_path_score:
-            #     print(f'ADDING {(distances[*path_end_idx] - dist, v, new_dir)}')
-            #     new_path = path.copy()
-            #     new_path.append((distances[*path_end_idx] - dist, v, new_dir))
-            #     queue.put(new_path)
-
-# How many tiles are in a best path?
+# How many tiles are in a best path?x
 maze_map = maze.copy()
 best_path_tiles = set()
-for path in best_paths:
-    # print(best_paths)
-    for idx in path:
-        maze_map[*idx] = 'O'
-        best_path_tiles.add(idx)
+for idx in on_best_path:
+    maze_map[*idx] = 'O'
+    best_path_tiles.add(idx)
     
-print('\n'.join(''.join(row) for row in maze_map))
 print(f'Total tiles along best paths: {len(best_path_tiles)}')
